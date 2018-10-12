@@ -176,7 +176,7 @@ classdef jl
             jl.set('julia_bin', exe);
 
             % get JULIA_HOME
-            jlhome = jl.eval_with_exe('unsafe_string(Base.JLOptions().julia_home)');
+            jlhome = jl.eval_with_exe('unsafe_string(Base.JLOptions().julia_bindir)');
             assert(exist(jlhome, 'dir') == 7);
             jl.set('julia_home', jlhome);
 
@@ -204,7 +204,8 @@ classdef jl
             else
                 lib_base = 'julia';
             end
-            lib_path = jl.eval_with_exe(sprintf('Libdl.dlpath(\\\"lib%s\\\")', lib_base));
+            
+            lib_path = jl.eval_with_exe(sprintf('Libdl.dlpath(\\\"lib%s\\\")', lib_base),1);
             if ispc
                 lib_dir = fullfile(jlhome, '..', 'lib');
             else
@@ -378,7 +379,10 @@ classdef jl
             str = regexprep(str, '\s$', '');
         end
 
-        function [val, err] = eval_with_exe(expr)
+        function [val, err] = eval_with_exe(expr,islib)
+            if nargin < 2
+                islib = 0;
+            end
             exe = jl.get('julia_bin');
             if ~ispc
                 % hide the LD_LIBRARY_PATH as it can cause errors when running
@@ -386,7 +390,11 @@ classdef jl
                 save_ld_lib_path = getenv('LD_LIBRARY_PATH');
                 setenv LD_LIBRARY_PATH;
             end
-            [err, val] = system(sprintf('"%s" -e "println(%s)"', exe, expr));
+            if ~islib   % Added because in Julia 1.0 Libdl must now be explicitly imported
+                [err, val] = system(sprintf('"%s" -e "println(%s)"', exe, expr));
+            else
+                [err, val] = system(sprintf('"%s" -e "import Libdl; println(%s)"', exe, expr));
+            end
             if ~ispc
                 % restore the LD_LIBRARY_PATH
                 setenv('LD_LIBRARY_PATH', save_ld_lib_path);
